@@ -41,11 +41,9 @@ export function getPayToAddress(): string {
  * does not require the network, so Bazaar discovery crawlers still get a valid
  * challenge before keys are set.
  *
- * Extensions (builder-code and discovery) are declared in the route config
- * and spread into the extensions object, not registered here.
- *
  * We register the EVM `exact` scheme for Base mainnet so USDC payment
- * requirements can be produced locally.
+ * requirements can be produced locally, plus the bazaar and builder-code
+ * resource-server extensions that enrich the per-route declarations.
  */
 let cachedServer: x402ResourceServer | undefined
 
