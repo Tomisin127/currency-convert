@@ -1,6 +1,8 @@
 import { HTTPFacilitatorClient, x402ResourceServer } from "@x402/core/server"
 import { ExactEvmScheme } from "@x402/evm/exact/server"
 import { createFacilitatorConfig } from "@coinbase/x402"
+import { bazaarResourceServerExtension } from "@x402/extensions/bazaar"
+import { builderCodeResourceServerExtension } from "@x402/extensions/builder-code"
 
 /**
  * Base mainnet in CAIP-2 format. USDC settlement happens on this network.
@@ -39,11 +41,9 @@ export function getPayToAddress(): string {
  * does not require the network, so Bazaar discovery crawlers still get a valid
  * challenge before keys are set.
  *
- * Extensions (builder-code and discovery) are declared in the route config
- * and spread into the extensions object, not registered here.
- *
  * We register the EVM `exact` scheme for Base mainnet so USDC payment
- * requirements can be produced locally.
+ * requirements can be produced locally, plus the bazaar and builder-code
+ * resource-server extensions that enrich the per-route declarations.
  */
 let cachedServer: x402ResourceServer | undefined
 
@@ -62,7 +62,17 @@ export function getResourceServer(): x402ResourceServer {
     createFacilitatorConfig(process.env.CDP_API_KEY_ID, process.env.CDP_API_KEY_SECRET),
   )
 
-  cachedServer = new x402ResourceServer(facilitatorClient).register(BASE_MAINNET, new ExactEvmScheme())
+  cachedServer = new x402ResourceServer(facilitatorClient)
+    .register(BASE_MAINNET, new ExactEvmScheme())
+    // Register the resource-server extensions that back the route declarations.
+    // Without these, `enrichExtensions` cannot enrich the declared extensions:
+    //   - bazaar: injects `input.method` (from the request's HTTP method) into the
+    //     discovery declaration. This is REQUIRED for v2 Bazaar discovery validation
+    //     ("input.method must be one of GET/HEAD/DELETE"); without it the
+    //     declaration ships without a method and validation fails.
+    //   - builder-code: echoes the ERC-8021 app code so attribution is advertised.
+    .registerExtension(bazaarResourceServerExtension)
+    .registerExtension(builderCodeResourceServerExtension)
 
   return cachedServer
 }
