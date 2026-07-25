@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { withX402, type RouteConfig } from "@x402/next"
-import { declareBuilderCodeExtension } from "@x402/extensions/builder-code"
+import { BUILDER_CODE, declareBuilderCodeExtension } from "@x402/extensions/builder-code"
 import { declareDiscoveryExtension } from "@x402/extensions/bazaar"
 import { BASE_MAINNET, MY_BUILDER_CODE, getPayToAddress, getResourceServer } from "@/lib/x402"
 
@@ -95,10 +95,27 @@ const routeConfig: RouteConfig = {
   tags: ["currency", "fx", "exchange-rate", "finance", "conversion"],
   extensions: {
     // ERC-8021 Builder Code attribution ("a" app code) on every settlement.
-    ...declareBuilderCodeExtension(MY_BUILDER_CODE),
-    // Bazaar discovery metadata: only output example is needed.
-    // HTTP method is inferred from the route handler signature (export const GET).
+    // `declareBuilderCodeExtension` returns a bare { info, schema } object, so it
+    // MUST be keyed under the extension name (BUILDER_CODE === "builder-code").
+    [BUILDER_CODE]: declareBuilderCodeExtension(MY_BUILDER_CODE),
+    // Bazaar discovery metadata. `declareDiscoveryExtension` already returns a
+    // self-keyed { bazaar: { info, schema } } object, so it is SPREAD here.
+    //
+    // Note: we intentionally do NOT pass `method`. The v2 discovery schema
+    // requires `input.method` to be one of GET/HEAD/DELETE, but that value is
+    // injected at request time by the registered `bazaarResourceServerExtension`
+    // (from the actual HTTP method of the route). Registering that server
+    // extension in lib/x402.ts is what makes discovery validation pass.
     ...declareDiscoveryExtension({
+      input: { from: "USD", to: "EUR", amount: 100 },
+      inputSchema: {
+        properties: {
+          from: { type: "string", description: "ISO 4217 currency code to convert from (e.g. USD)." },
+          to: { type: "string", description: "ISO 4217 currency code to convert to (e.g. EUR)." },
+          amount: { type: "number", description: "Amount to convert. Defaults to 1." },
+        },
+        required: ["from", "to"],
+      },
       output: {
         example: {
           from: "USD",
