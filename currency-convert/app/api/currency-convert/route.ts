@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { withX402, type RouteConfig } from "@x402/next"
+import { withX402FromHTTPServer, x402HTTPResourceServer, type RouteConfig } from "@x402/next"
 import { BUILDER_CODE, declareBuilderCodeExtension } from "@x402/extensions/builder-code"
 import { declareDiscoveryExtension } from "@x402/extensions/bazaar"
 import { BASE_MAINNET, MY_BUILDER_CODE, getPayToAddress, getResourceServer } from "@/lib/x402"
@@ -133,4 +133,17 @@ const routeConfig: RouteConfig = {
 // Wrap the handler with x402 payment protection. The resource server syncs with
 // the CDP facilitator to learn which schemes/networks are supported (needed to
 // build the `exact` + Base USDC payment requirements) before serving the 402.
-export const GET = withX402(handler, routeConfig, getResourceServer())
+//
+// IMPORTANT: We register the route under its CONCRETE path ("GET /api/currency-convert")
+// instead of using `withX402`, which internally maps the handler to the wildcard
+// pattern `{ "*": routeConfig }`. A `*` pattern makes the Bazaar server extension
+// auto-generate a `routeTemplate` of `:var1` (each `*` segment becomes `:varN`),
+// which then fails Bazaar discovery validation because the declared resource URL
+// (/api/currency-convert) does not match the template `:var1`. A concrete, static
+// path has no wildcard/param segments, so no `routeTemplate` is emitted and the
+// resource URL validates cleanly.
+const httpServer = new x402HTTPResourceServer(getResourceServer(), {
+  "GET /api/currency-convert": routeConfig,
+})
+
+export const GET = withX402FromHTTPServer(handler, httpServer)
