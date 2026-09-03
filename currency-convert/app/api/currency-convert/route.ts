@@ -142,8 +142,26 @@ const routeConfig: RouteConfig = {
 // (/api/currency-convert) does not match the template `:var1`. A concrete, static
 // path has no wildcard/param segments, so no `routeTemplate` is emitted and the
 // resource URL validates cleanly.
-const httpServer = new x402HTTPResourceServer(getResourceServer(), {
-  "GET /api/currency-convert": routeConfig,
-})
+const hasFacilitatorCredentials = Boolean(
+  process.env.CDP_API_KEY_ID?.trim() && process.env.CDP_API_KEY_SECRET?.trim(),
+)
 
-export const GET = withX402FromHTTPServer(handler, httpServer)
+// Do not let a missing/misconfigured facilitator turn every request into an
+// opaque HTTP 500. The payment middleware needs these credentials to initialize;
+// return an actionable configuration response until they are available.
+export const GET = hasFacilitatorCredentials
+  ? withX402FromHTTPServer(
+      handler,
+      new x402HTTPResourceServer(getResourceServer(), {
+        "GET /api/currency-convert": routeConfig,
+      }),
+    )
+  : async function GET() {
+      return NextResponse.json(
+        {
+          error: "Payment facilitator credentials are not configured.",
+          detail: "Set CDP_API_KEY_ID and CDP_API_KEY_SECRET for this deployment, then retry.",
+        },
+        { status: 503 },
+      )
+    }
