@@ -62,7 +62,28 @@ export function getResourceServer(): x402ResourceServer {
     createFacilitatorConfig(process.env.CDP_API_KEY_ID, process.env.CDP_API_KEY_SECRET),
   )
 
-  cachedServer = new x402ResourceServer(facilitatorClient)
+  // CDP's supported-kinds endpoint is only needed to discover capabilities. Do
+  // not let a transient/auth failure there prevent x402 from issuing the 402
+  // challenge. Verification and settlement still delegate to CDP and will
+  // surface any credential problem when a payment is actually supplied.
+  const resilientFacilitator = {
+    verify: facilitatorClient.verify.bind(facilitatorClient),
+    settle: facilitatorClient.settle.bind(facilitatorClient),
+    async getSupported() {
+      try {
+        return await facilitatorClient.getSupported()
+      } catch (error) {
+        console.error("[x402] CDP supported-kinds lookup failed; serving a local 402 challenge", error)
+        return {
+          kinds: [{ x402Version: 2, scheme: "exact", network: BASE_MAINNET }],
+          extensions: [],
+          signers: {},
+        }
+      }
+    },
+  }
+
+  cachedServer = new x402ResourceServer(resilientFacilitator)
     .register(BASE_MAINNET, new ExactEvmScheme())
     // Register the resource-server extensions that back the route declarations.
     // Without these, `enrichExtensions` cannot enrich the declared extensions:
