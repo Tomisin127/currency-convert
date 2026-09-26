@@ -61,7 +61,9 @@ export function getResourceServer(): x402ResourceServer {
   // Let the Coinbase adapter resolve credentials when it creates each auth
   // header. This avoids capturing an empty value during module evaluation in
   // a warm Next.js/Vercel function before the runtime env is available.
-  const facilitatorClient = new HTTPFacilitatorClient(createFacilitatorConfig())
+  const facilitatorClient = new HTTPFacilitatorClient(
+    createFacilitatorConfig(process.env.CDP_API_KEY_ID, process.env.CDP_API_KEY_SECRET),
+  )
 
   // CDP's supported-kinds endpoint is only needed to discover capabilities. Do
   // not let a transient/auth failure there prevent x402 from issuing the 402
